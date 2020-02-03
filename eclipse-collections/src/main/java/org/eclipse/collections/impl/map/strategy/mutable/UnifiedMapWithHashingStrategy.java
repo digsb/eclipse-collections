@@ -28,6 +28,7 @@ import org.eclipse.collections.api.block.HashingStrategy;
 import org.eclipse.collections.api.block.function.Function;
 import org.eclipse.collections.api.block.function.Function0;
 import org.eclipse.collections.api.block.function.Function2;
+import org.eclipse.collections.api.block.predicate.Predicate2;
 import org.eclipse.collections.api.block.procedure.Procedure;
 import org.eclipse.collections.api.block.procedure.Procedure2;
 import org.eclipse.collections.api.block.procedure.primitive.ObjectIntProcedure;
@@ -1274,6 +1275,53 @@ public class UnifiedMapWithHashingStrategy<K, V> extends AbstractMutableMap<K, V
             }
         }
         return null;
+    }
+
+    @Override
+    public boolean removeIf(Predicate2<? super K, ? super V> predicate)
+    {
+        int previousOccupied = this.occupied;
+        for (int index = 0; index < this.table.length; index += 2)
+        {
+            Object cur = this.table[index];
+            if (cur == null)
+            {
+                continue;
+            }
+            if (cur == CHAINED_KEY)
+            {
+                Object[] chain = (Object[]) this.table[index + 1];
+                for (int chIndex = 0; chIndex < chain.length; )
+                {
+                    if (chain[chIndex] == null)
+                    {
+                        break;
+                    }
+                    K key = this.nonSentinel(chain[chIndex]);
+                    V value = (V) chain[chIndex + 1];
+                    if (predicate.accept(key, value))
+                    {
+                        this.overwriteWithLastElementFromChain(chain, index, chIndex);
+                    }
+                    else
+                    {
+                        chIndex += 2;
+                    }
+                }
+            }
+            else
+            {
+                K key = this.nonSentinel(cur);
+                V value = (V) this.table[index + 1];
+                if (predicate.accept(key, value))
+                {
+                    this.table[index] = null;
+                    this.table[index + 1] = null;
+                    this.occupied--;
+                }
+            }
+        }
+        return previousOccupied > this.occupied;
     }
 
     private V removeFromChain(Object[] chain, K key, int index)
